@@ -42,7 +42,10 @@ AzureOpenAIPromptExecutionSettings openAiPromptExecutionSettings = new()
 {
     FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
 };
+
+// Get the kernel functions
 var generateReleaseNotesFn = kernel.Plugins.GetFunction("ReleaseNotesPlugin", "GenerateReleaseNotes");
+var getCommits = kernel.Plugins.GetFunction("CommitsPlugin", "GetCommits");
 
 
 
@@ -84,6 +87,31 @@ do
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("Generated Release Notes:");
+        Console.ResetColor();
+        Console.WriteLine(result.GetValue<string>());
+        continue; // Skip chat
+    }
+
+    // === CUSTOM COMMAND TO GENERATE RELEASE NOTES ===
+    if (userInput!.Trim().ToLower().Contains("commit"))
+    {
+        Console.Write("Enter path to Git repo: ");
+        var repoPath = Console.ReadLine();
+
+        if (!Directory.Exists(Path.Combine(repoPath, ".git")))
+        {
+            Console.WriteLine("Not a Git repository.");
+            continue;
+        }
+
+        // Call Semantic Kernel function
+        var result = await kernel.InvokeAsync(getCommits, new KernelArguments
+        {
+            ["repoPath"] = repoPath
+        });
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("Commits:");
         Console.ResetColor();
         Console.WriteLine(result.GetValue<string>());
         continue; // Skip chat

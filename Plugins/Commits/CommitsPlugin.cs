@@ -12,13 +12,13 @@ public class CommitsPlugin
     {
         if (string.IsNullOrWhiteSpace(repoPath) || !Directory.Exists(repoPath))
         {
-            return "❌ The specified path is invalid or does not exist.";
+            return "The specified path is invalid or does not exist.";
         }
 
         var gitFolder = Path.Combine(repoPath, ".git");
         if (!Directory.Exists(gitFolder))
         {
-            return "❌ The specified path is not a Git repository.";
+            return "The specified path is not a Git repository.";
         }
 
         try
@@ -30,7 +30,7 @@ public class CommitsPlugin
 
             if (!commits.Any())
             {
-                return "ℹ️ No commits found in this repository.";
+                return "No commits found in this repository.";
             }
 
             for (int i = 0; i < commits.Count; i++)
