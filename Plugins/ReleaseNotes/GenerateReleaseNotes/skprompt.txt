@@ -1,0 +1,13 @@
+﻿You are a professional release manager. Based on the following Git commit messages, generate clean, concise, and well-structured release notes.
+
+Instructions:
+- Group changes into: Features, Bug Fixes, Improvements, and Other Changes.
+- Use markdown headings (###) and bullet points.
+- Make the messages user-friendly and professional.
+- Ignore technical noise like hashes, ticket numbers, or code refactoring details unless relevant.
+- Focus on what changed, not how it changed.
+
+### Input – Git Commit Messages:
+{{$input}}
+
+### Output – Release Notes:

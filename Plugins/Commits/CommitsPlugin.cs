@@ -2,6 +2,9 @@
 using LibGit2Sharp;
 using System.Text;
 using System.ComponentModel;
+using System;
+using System.IO;
+using System.Linq;
 
 namespace SemanticKernelPlayground.Plugins.Commits;
 
@@ -46,7 +49,7 @@ public class CommitsPlugin
         }
         catch (Exception ex)
         {
-            return $"❌ Failed to read Git commits: {ex.Message}";
+            return $"Failed to read Git commits: {ex.Message}";
         }
     }
 }
