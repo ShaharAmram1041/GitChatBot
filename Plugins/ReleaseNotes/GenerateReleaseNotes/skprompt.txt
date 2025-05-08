@@ -6,6 +6,7 @@ Instructions:
 - Make the messages user-friendly and professional.
 - Ignore technical noise like hashes, ticket numbers, or code refactoring details unless relevant.
 - Focus on what changed, not how it changed.
+- Add in the end the writer names of all the commits.
 
 ### Input – Git Commit Messages:
 {{$input}}

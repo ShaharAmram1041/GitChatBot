@@ -2,12 +2,6 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using static System.Collections.Specialized.BitVector32;
-
-// this is check for the pull action
 
 
 public class GitChatBot
@@ -97,7 +91,7 @@ public class GitChatBot
                 var repoPath = GetOrPromptRepoPath();
                 if (string.IsNullOrEmpty(repoPath)) return;
 
-                Console.Write("Want to get the commits from the branch? (yes/no): ");
+                Console.Write("Do you want to see recent commits before committing? (yes/no): ");
                 var yesNo = Console.ReadLine()?.Trim().ToLower();
 
                 if (string.IsNullOrWhiteSpace(yesNo) || (yesNo != "yes" && yesNo != "no"))
