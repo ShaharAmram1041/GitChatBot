@@ -15,7 +15,8 @@ var configuration = new ConfigurationBuilder()
 var modelName = configuration["ModelName"] ?? throw new ApplicationException("ModelName not found");
 var endpoint = configuration["Endpoint"] ?? throw new ApplicationException("Endpoint not found");
 var apiKey = configuration["ApiKey"] ?? throw new ApplicationException("ApiKey not found");
-
+var githubUsername = configuration["GitHub:Username"] ?? throw new ApplicationException("GitHub:Username not found");
+var githubToken = configuration["GitHub:Token"] ?? throw new ApplicationException("GitHub:Token not found");
 
 // Create the kernel and add the Azure OpenAI chat completion service
 var builder = Kernel.CreateBuilder()
@@ -39,7 +40,7 @@ AzureOpenAIPromptExecutionSettings openAiPromptExecutionSettings = new()
     FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
 };
 
-// Get the kernel functions
+// Get the kernel function
 var getCommits = kernel.Plugins.GetFunction("CommitsPlugin", "GetCommits");
 
 
@@ -48,7 +49,7 @@ string releaseNotesPluginDir = Path.Combine(AppContext.BaseDirectory, "../../../
 var releaseNotesPlugin = kernel.CreatePluginFromPromptDirectory(releaseNotesPluginDir, "ReleaseNotes");
 var generateReleaseNotes = releaseNotesPlugin["GenerateReleaseNotes"];
 
-
-var gitChatBot = new GitChatBot(kernel, chatCompletionService, getCommits, generateReleaseNotes);
+// Run the chatbot
+var gitChatBot = new GitChatBot(kernel, chatCompletionService, getCommits, generateReleaseNotes, githubUsername, githubToken);
 await gitChatBot.RunAsync();
 

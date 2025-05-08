@@ -7,25 +7,33 @@ using System.IO;
 using System.Threading.Tasks;
 using static System.Collections.Specialized.BitVector32;
 
+
 public class GitChatBot
 {
     private readonly IChatCompletionService _chatService;
     private readonly Kernel _kernel;
     private readonly KernelFunction _getCommits;
     private readonly KernelFunction _generateReleaseNotes;
+    private readonly string _githubUsername;
+    private readonly string _githubToken;
 
     private string _currentRepoPath = string.Empty;
+
 
     public GitChatBot(
          Kernel kernel,
          IChatCompletionService chatService,
          KernelFunction getCommits,
-         KernelFunction generateReleaseNotes)
+         KernelFunction generateReleaseNotes,
+         string githubUsername,
+         string githubToken)
     {
         _kernel = kernel;
         _chatService = chatService;
         _getCommits = getCommits;
         _generateReleaseNotes = generateReleaseNotes;
+        _githubUsername = githubUsername;
+        _githubToken = githubToken;
     }
 
     public async Task RunAsync()
@@ -66,7 +74,7 @@ public class GitChatBot
 
                 if (string.IsNullOrWhiteSpace(commits))
                 {
-                    Console.WriteLine("⚠️ No commits found.");
+                    Console.WriteLine("No commits found.");
                     continue;
                 }
 
@@ -134,8 +142,7 @@ public class GitChatBot
             {
                 var repoPath = GetOrPromptRepoPath();
                 if (string.IsNullOrEmpty(repoPath)) return;
-
-                //GitUtils.PushToRemote(repoPath);
+                gitActions("push");
                 continue;
             }
 
@@ -145,8 +152,7 @@ public class GitChatBot
             {
                 var repoPath = GetOrPromptRepoPath();
                 if (string.IsNullOrEmpty(repoPath)) return;
-
-                //GitUtils.PullRepo(repoPath);
+                gitActions("pull");
                 continue;
             }
 
@@ -212,13 +218,46 @@ public class GitChatBot
                 var author = new Signature("ChatBot", "chatbot@example.com", DateTimeOffset.Now);
                 var commit = repo.Commit(commitMessage, author, author);
 
-                Console.WriteLine($"Commit successful: {commit.Sha}"); break;
+                Console.WriteLine($"Commit successful: {commit.Sha}"); 
+                break;
+
             case "push":
-                //GitUtils.PushToRemote(repoPath);
+                var remote = repo.Network.Remotes["origin"];
+                var options = new PushOptions
+                {
+                    CredentialsProvider = (_url, _user, _cred) =>
+                        new UsernamePasswordCredentials
+                        {
+                            Username = _githubUsername,
+                            Password = _githubToken
+                        }
+                };
+
+                Console.WriteLine($"Pushing to github...");
+                repo.Network.Push(remote, @"refs/heads/master", options);
+                Console.WriteLine("Push successful.");
                 break;
+
             case "pull":
-                //GitUtils.PullRepo(repoPath);
+                var signature = new Signature("ChatBot", "chatbot@example.com", DateTimeOffset.Now);
+
+                var pullOptions = new PullOptions
+                {
+                    FetchOptions = new FetchOptions
+                    {
+                        CredentialsProvider = (_url, _user, _cred) =>
+                            new UsernamePasswordCredentials
+                            {
+                                Username = _githubUsername,
+                                Password = _githubToken
+                            }
+                    }
+                };
+
+                var result = Commands.Pull(repo, signature, pullOptions);
+                Console.WriteLine($"Pull result: {result.Status}"); 
                 break;
+
             default:
                 Console.WriteLine("Invalid action.");
                 break;
