@@ -49,7 +49,6 @@ var releaseNotesPlugin = kernel.CreatePluginFromPromptDirectory(releaseNotesPlug
 var generateReleaseNotes = releaseNotesPlugin["GenerateReleaseNotes"];
 
 
-
 var gitChatBot = new GitChatBot(kernel, chatCompletionService, getCommits, generateReleaseNotes);
 await gitChatBot.RunAsync();
 

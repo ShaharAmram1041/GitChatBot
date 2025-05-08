@@ -1,9 +1,11 @@
-﻿using Microsoft.SemanticKernel.ChatCompletion;
-using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+﻿using LibGit2Sharp;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using System;
-using System.Threading.Tasks;
 using System.IO;
+using System.Threading.Tasks;
+using static System.Collections.Specialized.BitVector32;
 
 public class GitChatBot
 {
@@ -12,22 +14,22 @@ public class GitChatBot
     private readonly KernelFunction _getCommits;
     private readonly KernelFunction _generateReleaseNotes;
 
+    private string _currentRepoPath = string.Empty;
+
     public GitChatBot(
          Kernel kernel,
          IChatCompletionService chatService,
          KernelFunction getCommits,
          KernelFunction generateReleaseNotes)
-        {
-            _kernel = kernel;
-            _chatService = chatService;
-            _getCommits = getCommits;
-            _generateReleaseNotes = generateReleaseNotes;
-        }
-
+    {
+        _kernel = kernel;
+        _chatService = chatService;
+        _getCommits = getCommits;
+        _generateReleaseNotes = generateReleaseNotes;
+    }
 
     public async Task RunAsync()
     {
-       
         var history = new ChatHistory();
         var userInput = string.Empty;
 
@@ -38,20 +40,22 @@ public class GitChatBot
             Console.ResetColor();
 
             userInput = Console.ReadLine()?.Trim() ?? string.Empty;
-
             if (string.Equals(userInput, "exit", StringComparison.OrdinalIgnoreCase))
                 break;
 
+            // Handle change repo
+            if (userInput.Contains("change repo", StringComparison.OrdinalIgnoreCase))
+            {
+                _currentRepoPath = string.Empty;
+                Console.WriteLine("Repository path cleared. You will be prompted again.");
+                continue;
+            }
+
+            // Release Notes command
             if (userInput.Contains("release notes", StringComparison.OrdinalIgnoreCase))
             {
-                Console.Write("Enter Git repo path: ");
-                var repoPath = Console.ReadLine();
-
-                if (!Directory.Exists(Path.Combine(repoPath, ".git")))
-                {
-                    Console.WriteLine("Not a Git repository.");
-                    continue;
-                }
+                var repoPath = GetOrPromptRepoPath();
+                if (string.IsNullOrEmpty(repoPath)) return;
 
                 var commitResult = await _kernel.InvokeAsync(_getCommits, new KernelArguments
                 {
@@ -77,31 +81,77 @@ public class GitChatBot
                 continue;
             }
 
+            // Commit command
             if (userInput.Contains("commit", StringComparison.OrdinalIgnoreCase))
             {
-                Console.Write("Enter path to Git repo: ");
-                var repoPath = Console.ReadLine();
+                var repoPath = GetOrPromptRepoPath();
+                if (string.IsNullOrEmpty(repoPath)) return;
 
-                if (!Directory.Exists(Path.Combine(repoPath, ".git")))
+                Console.Write("Want to get the commits from the branch? (yes/no): ");
+                var yesNo = Console.ReadLine()?.Trim().ToLower();
+
+                if (string.IsNullOrWhiteSpace(yesNo) || (yesNo != "yes" && yesNo != "no"))
                 {
-                    Console.WriteLine("Not a Git repository.");
+                    Console.WriteLine("Invalid input. Please enter 'yes' or 'no'.");
                     continue;
                 }
 
-                var commitResult = await _kernel.InvokeAsync(_getCommits, new KernelArguments
+                if (yesNo == "yes")
                 {
-                    ["repoPath"] = repoPath
-                });
+                    var commitResult = await _kernel.InvokeAsync(_getCommits, new KernelArguments
+                    {
+                        ["repoPath"] = repoPath
+                    });
 
-                var commits = commitResult.GetValue<string>() ?? "";
+                    string commits = commitResult.GetValue<string>() ?? "";
 
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("Commits:\n" + commits);
-                Console.ResetColor();
-                continue; // ✅ CRITICAL: prevents fall-through to GPT
+                    if (string.IsNullOrWhiteSpace(commits))
+                    {
+                        Console.WriteLine("No commits found.");
+                        continue;
+                    }
+                    Console.WriteLine("\n\n" + commits);
+                    continue;
+
+                }
+                else
+                {
+                    Console.Write("Enter commit message: ");
+                    var message = Console.ReadLine()?.Trim();
+                    if (string.IsNullOrWhiteSpace(message))
+                    {
+                        Console.WriteLine("Commit message cannot be empty.");
+                        continue;
+                    }
+
+                    gitActions("commit", message);                
+                    continue;
+                }
             }
 
-            // Default chat flow (ONLY runs when no command matched)
+            // Push command
+            if (userInput.Contains("push", StringComparison.OrdinalIgnoreCase))
+            {
+                var repoPath = GetOrPromptRepoPath();
+                if (string.IsNullOrEmpty(repoPath)) return;
+
+                //GitUtils.PushToRemote(repoPath);
+                continue;
+            }
+
+
+            // Pull command
+            if (userInput.Contains("pull", StringComparison.OrdinalIgnoreCase))
+            {
+                var repoPath = GetOrPromptRepoPath();
+                if (string.IsNullOrEmpty(repoPath)) return;
+
+                //GitUtils.PullRepo(repoPath);
+                continue;
+            }
+
+
+            // Default chat flow
             history.AddUserMessage(userInput);
 
             var response = _chatService.GetStreamingChatMessageContentsAsync(
@@ -126,6 +176,52 @@ public class GitChatBot
 
             Console.WriteLine();
             history.AddMessage(AuthorRole.Assistant, fullResponse);
+        }
+    }
+
+    private string GetOrPromptRepoPath(bool forcePrompt = false)
+    {
+        if (!forcePrompt && Directory.Exists(Path.Combine(_currentRepoPath ?? "", ".git")))
+        {
+            return _currentRepoPath!;
+        }
+
+        Console.Write("Enter Git repo path: ");
+        var inputPath = Console.ReadLine()?.Trim();
+
+        if (string.IsNullOrWhiteSpace(inputPath) || !Directory.Exists(Path.Combine(inputPath, ".git")))
+        {
+            Console.WriteLine("Invalid Git repository path.");
+            return string.Empty;
+        }
+
+        _currentRepoPath = inputPath;
+        return _currentRepoPath;
+    }
+
+
+    private void gitActions(string action, string commitMessage="")
+    {                
+        using var repo = new Repository(_currentRepoPath);
+
+        switch (action.ToLower())
+        {
+            case "commit":
+                Commands.Stage(repo, "*");
+
+                var author = new Signature("ChatBot", "chatbot@example.com", DateTimeOffset.Now);
+                var commit = repo.Commit(commitMessage, author, author);
+
+                Console.WriteLine($"Commit successful: {commit.Sha}"); break;
+            case "push":
+                //GitUtils.PushToRemote(repoPath);
+                break;
+            case "pull":
+                //GitUtils.PullRepo(repoPath);
+                break;
+            default:
+                Console.WriteLine("Invalid action.");
+                break;
         }
     }
 }
