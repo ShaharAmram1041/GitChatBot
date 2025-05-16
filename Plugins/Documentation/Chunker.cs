@@ -1,16 +1,16 @@
-﻿using Microsoft.SemanticKernel.Text;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+﻿using System.Text.RegularExpressions;
+using SharpToken;
 
 namespace SemanticKernelPlayground.Plugins.Documentation
 {
     public static class Chunker
     {
+        private const int MaxTokensPerChunk = 2048;
+        private const int TokenStride = 1024; // for overlapping context
+
+
+
+        // Option 1: chunck by method, regular expression
         public static IEnumerable<string> ChunkByMethod(string fileContent)
         {
             var chunks = new List<string>();
@@ -50,5 +50,26 @@ namespace SemanticKernelPlayground.Plugins.Documentation
 
             return chunks;
         }
+
+
+
+
+        // Option 2: chunck by number of tokens
+        public static IEnumerable<string> ChunkByTokens(string fileContent, string model = "text-embedding-3-large")
+        {
+            var encoding = GptEncoding.GetEncodingForModel(model);
+            var tokens = encoding.Encode(fileContent);
+
+            for (int i = 0; i < tokens.Count; i += TokenStride)
+            {
+                var chunkTokens = tokens.Skip(i).Take(MaxTokensPerChunk).ToList();
+                if (chunkTokens.Count == 0) break;
+
+                string chunk = encoding.Decode(chunkTokens);
+                yield return chunk;
+            }
+        }
     }
+
+
 }

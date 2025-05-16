@@ -1,14 +1,9 @@
 ﻿using LibGit2Sharp;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
-using Microsoft.SemanticKernel.Connectors.InMemory;
-using Microsoft.SemanticKernel.Memory;
 using SemanticKernelPlayground.Infrastructure;
 using SemanticKernelPlayground.Plugins.Documentation;
-using System;
-
 
 public class GitChatBot
 {
@@ -46,8 +41,9 @@ public class GitChatBot
 
     public async Task RunAsync()
     {
+        DisplayAvailableCommands();
         var history = new ChatHistory();
-        var userInput = string.Empty;
+        string userInput;
 
         while (true)
         {
@@ -56,29 +52,35 @@ public class GitChatBot
             Console.ResetColor();
 
             userInput = Console.ReadLine()?.Trim() ?? string.Empty;
-            if (string.Equals(userInput, "exit", StringComparison.OrdinalIgnoreCase))
+            string normalizedInput = userInput.ToLowerInvariant();
+
+            if (normalizedInput == "exit")
                 break;
 
-            // Handle change repo
-            if (userInput.Contains("change repo", StringComparison.OrdinalIgnoreCase))
+            if (normalizedInput == "help" || normalizedInput == "?")
+            {
+                DisplayAvailableCommands();
+                continue;
+            }
+
+            if (normalizedInput.Contains("change repo"))
             {
                 _currentRepoPath = string.Empty;
                 Console.WriteLine("Repository path cleared. You will be prompted again.");
                 continue;
             }
 
-            // Release Notes command
-            if (userInput.Contains("release notes", StringComparison.OrdinalIgnoreCase))
+            if (normalizedInput.Contains("release notes"))
             {
                 var repoPath = GetOrPromptRepoPath();
-                if (string.IsNullOrEmpty(repoPath)) return;
+                if (string.IsNullOrEmpty(repoPath)) continue;
 
                 var commitResult = await _kernel.InvokeAsync(_getCommits, new KernelArguments
                 {
                     ["repoPath"] = repoPath
                 });
 
-                string commits = commitResult.GetValue<string>() ?? "";
+                var commits = commitResult.GetValue<string>() ?? "";
 
                 if (string.IsNullOrWhiteSpace(commits))
                 {
@@ -92,113 +94,109 @@ public class GitChatBot
                 });
 
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("Release Notes:\n" + notesResult.GetValue<string>());
+                Console.WriteLine("\nRelease Notes:\n" + notesResult.GetValue<string>());
                 Console.ResetColor();
                 continue;
             }
 
-            // Commit command
-            if (userInput.Contains("commit", StringComparison.OrdinalIgnoreCase))
+            if (normalizedInput.Contains("commit"))
             {
                 var repoPath = GetOrPromptRepoPath();
-                if (string.IsNullOrEmpty(repoPath)) return;
+                if (string.IsNullOrEmpty(repoPath)) continue;
 
-                Console.Write("Do you want to see recent commits before committing? (yes/no): ");
-                var yesNo = Console.ReadLine()?.Trim().ToLower();
+                Console.WriteLine("What would you like to do?");
+                Console.WriteLine(" ├─ Type `view` to see recent commits.");
+                Console.WriteLine(" ├─ Type `commit` to make a new commit.");
+                Console.Write("Your choice: ");
 
-                if (string.IsNullOrWhiteSpace(yesNo) || (yesNo != "yes" && yesNo != "no"))
+                var commitAction = Console.ReadLine()?.Trim().ToLowerInvariant();
+
+                switch (commitAction)
                 {
-                    Console.WriteLine("Invalid input. Please enter 'yes' or 'no'.");
-                    continue;
+                    case "view":
+                        var commitResult = await _kernel.InvokeAsync(_getCommits, new KernelArguments
+                        {
+                            ["repoPath"] = repoPath
+                        });
+
+                        var commitLog = commitResult.GetValue<string>() ?? "";
+                        if (string.IsNullOrWhiteSpace(commitLog))
+                        {
+                            Console.WriteLine("No commits found.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Recent Commits:\n" + commitLog);
+                        }
+                        break;
+
+                    case "commit":
+                        Console.Write("Enter commit message: ");
+                        var message = Console.ReadLine()?.Trim();
+
+                        if (string.IsNullOrWhiteSpace(message))
+                        {
+                            Console.WriteLine("Commit message cannot be empty.");
+                        }
+                        else
+                        {
+                            gitActions("commit", message);
+                        }
+                        break;
+
+                    default:
+                        Console.WriteLine("Invalid option. Please enter `view` or `commit`.");
+                        break;
                 }
-
-                if (yesNo == "yes")
-                {
-                    var commitResult = await _kernel.InvokeAsync(_getCommits, new KernelArguments
-                    {
-                        ["repoPath"] = repoPath
-                    });
-
-                    string commits = commitResult.GetValue<string>() ?? "";
-
-                    if (string.IsNullOrWhiteSpace(commits))
-                    {
-                        Console.WriteLine("No commits found.");
-                        continue;
-                    }
-                    Console.WriteLine("\n\n" + commits);
-                    continue;
-
-                }
-                else
-                {
-                    Console.Write("Enter commit message: ");
-                    var message = Console.ReadLine()?.Trim();
-                    if (string.IsNullOrWhiteSpace(message))
-                    {
-                        Console.WriteLine("Commit message cannot be empty.");
-                        continue;
-                    }
-
-                    gitActions("commit", message);                
-                    continue;
-                }
+                continue;
             }
 
-            // Push command
-            if (userInput.Contains("push", StringComparison.OrdinalIgnoreCase))
+            if (normalizedInput.Contains("push"))
             {
                 var repoPath = GetOrPromptRepoPath();
-                if (string.IsNullOrEmpty(repoPath)) return;
+                if (string.IsNullOrEmpty(repoPath)) continue;
+
                 gitActions("push");
                 continue;
             }
 
-
-            // Pull command
-            if (userInput.Contains("pull", StringComparison.OrdinalIgnoreCase))
+            if (normalizedInput.Contains("pull"))
             {
                 var repoPath = GetOrPromptRepoPath();
-                if (string.IsNullOrEmpty(repoPath)) return;
+                if (string.IsNullOrEmpty(repoPath)) continue;
+
                 gitActions("pull");
                 continue;
             }
 
-
-            // Questions
-            // Excercise 2
-            if (string.Equals(userInput, "codebase", StringComparison.OrdinalIgnoreCase))
+            if (normalizedInput == "codebase")
             {
                 var repoPath = GetOrPromptRepoPath();
-                if (string.IsNullOrEmpty(repoPath)) return;
+                if (string.IsNullOrEmpty(repoPath)) continue;
 
                 Console.WriteLine("Indexing codebase, please wait...");
                 var files = CodeFileReader.ReadCodeFiles(repoPath);
                 await _vectorStoreIngestor.IngestAsync(files);
-                Console.WriteLine("Codebase is ready. You can now ask questions.");
-                var flag = false;
+                Console.WriteLine("Codebase indexed. You can now ask questions.");
 
                 while (true)
                 {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("Ask a question about the codebase.");
+                    Console.WriteLine("(Type 'change-repo' to switch repositories or 'exit' to quit).");
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.Write("\n -> Ask a question about the codebase (or type 'change-repo' or 'exit'): ");
+                    Console.Write("Me -> ");
                     Console.ResetColor();
 
-                    var query = Console.ReadLine()?.Trim();
 
+                    var query = Console.ReadLine()?.Trim();
                     if (string.IsNullOrEmpty(query)) continue;
 
-                    if (query.Equals("exit", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Console.WriteLine("Exiting code.");
-                        flag = true;
-                        break;
-                    }
-
+                    if (query.Equals("exit", StringComparison.OrdinalIgnoreCase)) break;
                     if (query.Equals("change-repo", StringComparison.OrdinalIgnoreCase))
                     {
                         repoPath = GetOrPromptRepoPath(forcePrompt: true);
-                        if (string.IsNullOrEmpty(repoPath)) return;
+                        if (string.IsNullOrEmpty(repoPath)) break;
 
                         Console.WriteLine("Re-indexing new codebase...");
                         files = CodeFileReader.ReadCodeFiles(repoPath);
@@ -212,29 +210,21 @@ public class GitChatBot
                         { "query", query }
                     });
 
-
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.Write("Agent -> \n");
+                    Console.Write("Agent -> ");
                     Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.WriteLine(answer.GetValue<string>());
                     Console.ResetColor();
                 }
-                if (flag)
-                    continue;
+
+                continue;
             }
 
-
-
-
-            // Default chat flow
+            // Fallback: General chat assistant
             history.AddUserMessage(userInput);
-
-            var response = _chatService.GetStreamingChatMessageContentsAsync(
+            var chatResponse = _chatService.GetStreamingChatMessageContentsAsync(
                 history,
-                new AzureOpenAIPromptExecutionSettings
-                {
-                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
-                },
+                new AzureOpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() },
                 _kernel
             );
 
@@ -243,16 +233,17 @@ public class GitChatBot
             Console.ResetColor();
 
             string fullResponse = "";
-            await foreach (var chunk in response)
+            await foreach (var chunk in chatResponse)
             {
                 Console.Write(chunk.Content);
                 fullResponse += chunk.Content;
             }
 
-            Console.WriteLine();
             history.AddMessage(AuthorRole.Assistant, fullResponse);
+            Console.WriteLine();
         }
     }
+
 
     private string GetOrPromptRepoPath(bool forcePrompt = false)
     {
@@ -332,4 +323,21 @@ public class GitChatBot
                 break;
         }
     }
+
+    private void DisplayAvailableCommands()
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("Welcome to GitChatBot :)");
+        Console.WriteLine("You can interact with your Git repository and codebase. Here are some commands you can use:");
+        Console.WriteLine(" ├─ 'release notes`      - Generate release notes from recent commits");
+        Console.WriteLine(" ├─ `commit`             - View or make a new commit");
+        Console.WriteLine(" ├─ 'push`               - Push your local changes to GitHub");
+        Console.WriteLine(" ├─ 'pull`               - Pull latest changes from GitHub");
+        Console.WriteLine(" ├─ `codebase`           - Load and ask questions about the codebase");
+        Console.WriteLine(" ├─ `change repo`        - Switch to a different Git repository");
+        Console.WriteLine(" └─ `exit`               - Quit the application");
+        Console.WriteLine("\nYou can also ask free-form natural language questions at any time.\n");
+        Console.ResetColor();
+    }
+
 }

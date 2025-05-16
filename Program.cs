@@ -1,26 +1,21 @@
-﻿#pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-#pragma warning disable SKEXP0020 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+﻿#pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates.
+#pragma warning disable SKEXP0020 // Type is for evaluation purposes only and is subject to change or removal in future updates.
 #pragma warning disable SKEXP0001
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using SemanticKernelPlayground.Infrastructure;
-using SemanticKernelPlayground.Plugins.Commits;
-//using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Connectors.InMemory;
 using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.Extensions.VectorData;
-using OpenAI.VectorStores;
-//using SemanticKernelPlayground.Infrastructure;
+using SemanticKernelPlayground.Infrastructure;
+using SemanticKernelPlayground.Plugins.Commits;
 
 // Configuration setup
 var configuration = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .AddJsonFile("appsettings.Development.json", optional: false, reloadOnChange: true)
     .Build();
-
 
 // Read required settings
 var modelName = configuration["ModelName"] ?? throw new ApplicationException("ModelName not found");
@@ -30,66 +25,48 @@ var embeddingModel = configuration["EmbeddingModel"] ?? throw new ApplicationExc
 var githubUsername = configuration["GitHub:Username"] ?? throw new ApplicationException("GitHub:Username not found");
 var githubToken = configuration["GitHub:Token"] ?? throw new ApplicationException("GitHub:Token not found");
 
-
+// Configure kernel and services
 var builder = Kernel.CreateBuilder()
-    .AddAzureOpenAIChatCompletion(modelName, endpoint, apiKey) // for chat
-    .AddAzureOpenAITextEmbeddingGeneration(embeddingModel, endpoint, apiKey) // for embeddings
-    .AddInMemoryVectorStore(); // for memory
+    .AddAzureOpenAIChatCompletion(modelName, endpoint, apiKey) // Chat
+    .AddAzureOpenAITextEmbeddingGeneration(embeddingModel, endpoint, apiKey) // Embeddings
+    .AddInMemoryVectorStore(); // Vector memory
 
-
-
+// Register custom services
 builder.Services.AddSingleton<VectorStoreIngestor>();
 builder.Services.AddSingleton<CodeSearchPlugin>();
 
-
-
-
-// Load plugins (functions)
+// Load built-in plugins
 builder.Plugins.AddFromType<CommitsPlugin>();
 builder.Plugins.AddFromType<CodeSearchPlugin>();
-
-
 
 // Build the kernel
 var kernel = builder.Build();
 
-
-// Get chat completion service from the kernel
+// Resolve services from kernel DI
 var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-
-
-// Get kernel function for commits
-var getCommits = kernel.Plugins.GetFunction("CommitsPlugin", "GetCommits");
-
-
-// Load prompt-based plugin for release notes generation
-string releaseNotesPluginDir = Path.Combine(AppContext.BaseDirectory, "../../../../SemanticKernelPlayground/Plugins/ReleaseNotes");
-var releaseNotesPlugin = kernel.CreatePluginFromPromptDirectory(releaseNotesPluginDir, "ReleaseNotes");
-var generateReleaseNotes = releaseNotesPlugin["GenerateReleaseNotes"];
-
-// Manually resolve the services
 var vectorStore = kernel.GetRequiredService<IVectorStore>();
 var embeddingService = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
+var ingestor = kernel.GetRequiredService<VectorStoreIngestor>();
+var codeQnAService = kernel.GetRequiredService<CodeSearchPlugin>();
 
-// Manually create the ingestor
-var ingestor = new VectorStoreIngestor(vectorStore, embeddingService);
+// Load prompt-based plugin
+string releaseNotesPluginDir = Path.Combine(AppContext.BaseDirectory, "../../../../SemanticKernelPlayground/Plugins/ReleaseNotes");
+var releaseNotesPlugin = kernel.CreatePluginFromPromptDirectory(releaseNotesPluginDir, "ReleaseNotes");
+kernel.Plugins.Add(releaseNotesPlugin);
+var generateReleaseNotes = releaseNotesPlugin["GenerateReleaseNotes"];
 
-var codeQnAService = new CodeSearchPlugin(
-    embeddingService,
-    chatCompletionService,
-    vectorStore
-);
-
+// Retrieve kernel functions
+var getCommits = kernel.Plugins.GetFunction("CommitsPlugin", "GetCommits");
 
 // Run the Git chatbot
 var gitChatBot = new GitChatBot(
-    kernel, 
+    kernel,
     chatCompletionService,
     getCommits,
-    generateReleaseNotes,     
+    generateReleaseNotes,
     ingestor,
     codeQnAService,
-    githubUsername, 
+    githubUsername,
     githubToken);
-await gitChatBot.RunAsync();
 
+await gitChatBot.RunAsync();

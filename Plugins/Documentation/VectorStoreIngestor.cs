@@ -10,7 +10,6 @@ public class VectorStoreIngestor
 {
     private readonly IVectorStore _vectorStore;
     private readonly ITextEmbeddingGenerationService _embeddingService;
-    private const int MaxAllowedChunkLength = 3000;
 
     public VectorStoreIngestor(IVectorStore vectorStore, ITextEmbeddingGenerationService embeddingService)
     {
@@ -30,7 +29,7 @@ public class VectorStoreIngestor
             {
                 try
                 {
-                    foreach (var chunk in Chunker.ChunkByMethod(file.Content))
+                    foreach (var chunk in Chunker.ChunkByTokens(file.Content))
                     {
                     
                         var embedding = await _embeddingService.GenerateEmbeddingAsync(chunk);
@@ -42,7 +41,6 @@ public class VectorStoreIngestor
                             Content = chunk,
                             Embedding = embedding
                         };
-
                         await collection.UpsertAsync(record);
                     }
                 }

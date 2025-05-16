@@ -16,4 +16,5 @@ public class CodeChunk
 
     [VectorStoreRecordVector(3072)]
     public required ReadOnlyMemory<float> Embedding { get; set; }
+
 }
