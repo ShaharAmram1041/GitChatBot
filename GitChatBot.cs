@@ -1,7 +1,13 @@
 ﻿using LibGit2Sharp;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using Microsoft.SemanticKernel.Connectors.InMemory;
+using Microsoft.SemanticKernel.Memory;
+using SemanticKernelPlayground.Infrastructure;
+using SemanticKernelPlayground.Plugins.Documentation;
+using System;
 
 
 public class GitChatBot
@@ -10,6 +16,8 @@ public class GitChatBot
     private readonly Kernel _kernel;
     private readonly KernelFunction _getCommits;
     private readonly KernelFunction _generateReleaseNotes;
+    private readonly VectorStoreIngestor _vectorStoreIngestor;
+    private readonly CodeSearchPlugin _codebaseQnAService;
     private readonly string _githubUsername;
     private readonly string _githubToken;
 
@@ -21,6 +29,8 @@ public class GitChatBot
          IChatCompletionService chatService,
          KernelFunction getCommits,
          KernelFunction generateReleaseNotes,
+         VectorStoreIngestor vectorStoreIngestor,
+         CodeSearchPlugin codebaseQnAService,
          string githubUsername,
          string githubToken)
     {
@@ -28,6 +38,8 @@ public class GitChatBot
         _chatService = chatService;
         _getCommits = getCommits;
         _generateReleaseNotes = generateReleaseNotes;
+        _vectorStoreIngestor = vectorStoreIngestor;
+        _codebaseQnAService = codebaseQnAService;
         _githubUsername = githubUsername;
         _githubToken = githubToken;
     }
@@ -151,6 +163,67 @@ public class GitChatBot
                 gitActions("pull");
                 continue;
             }
+
+
+            // Questions
+            // Excercise 2
+            if (string.Equals(userInput, "codebase", StringComparison.OrdinalIgnoreCase))
+            {
+                var repoPath = GetOrPromptRepoPath();
+                if (string.IsNullOrEmpty(repoPath)) return;
+
+                Console.WriteLine("Indexing codebase, please wait...");
+                var files = CodeFileReader.ReadCodeFiles(repoPath);
+                await _vectorStoreIngestor.IngestAsync(files);
+                Console.WriteLine("Codebase is ready. You can now ask questions.");
+                var flag = false;
+
+                while (true)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.Write("\n -> Ask a question about the codebase (or type 'change-repo' or 'exit'): ");
+                    Console.ResetColor();
+
+                    var query = Console.ReadLine()?.Trim();
+
+                    if (string.IsNullOrEmpty(query)) continue;
+
+                    if (query.Equals("exit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine("Exiting code.");
+                        flag = true;
+                        break;
+                    }
+
+                    if (query.Equals("change-repo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        repoPath = GetOrPromptRepoPath(forcePrompt: true);
+                        if (string.IsNullOrEmpty(repoPath)) return;
+
+                        Console.WriteLine("Re-indexing new codebase...");
+                        files = CodeFileReader.ReadCodeFiles(repoPath);
+                        await _vectorStoreIngestor.IngestAsync(files);
+                        Console.WriteLine("New codebase is ready.");
+                        continue;
+                    }
+
+                    var answer = await _kernel.InvokeAsync("CodeSearchPlugin", "AskQuestionAsync", new KernelArguments
+                    {
+                        { "query", query }
+                    });
+
+
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.Write("Agent -> \n");
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine(answer.GetValue<string>());
+                    Console.ResetColor();
+                }
+                if (flag)
+                    continue;
+            }
+
+
 
 
             // Default chat flow
