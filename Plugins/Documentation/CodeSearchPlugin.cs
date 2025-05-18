@@ -8,6 +8,8 @@ using Microsoft.Extensions.VectorData;
 using Microsoft.SemanticKernel;
 using System.Text;
 using System.ComponentModel;
+using DocumentFormat.OpenXml.Spreadsheet;
+using SemanticKernelPlayground.Plugins.Documentation;
 
 public class CodeSearchPlugin
 {
@@ -30,12 +32,16 @@ public class CodeSearchPlugin
     {
         try
         {
+            // Accesses the saved code chunks from the vector store.
             var collection = _vectorStore.GetCollection<string, CodeChunk>("code_docs");
 
+
             var textSearch = new VectorStoreTextSearch<CodeChunk>(
-                collection,
+            collection,
                 _embedding);
 
+            // Search for Relevant Code Chunks
+            // This retrieves the top relevant code chunks from the vector store, based on the meaning of the user’s question.
             var results = await textSearch.GetTextSearchResultsAsync(query, new() { Top = 5 });
 
             var contextBuilder = new StringBuilder();
