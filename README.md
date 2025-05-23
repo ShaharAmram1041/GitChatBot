@@ -34,22 +34,22 @@ GitChatBot is a powerful and extensible **.NET 9 console application** that allo
 
 Follow these steps to get **GitChatBot** up and running locally:
 
-### 1. Clone the Repository
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/ShaharAmram1041/GitChatBot.git
 cd GitChatBot
 ```
 
-### 2. Restore Dependencies
+#### 2. Restore Dependencies
 
 ```bash
 git restore
 ```
 
-### 3. Configure Environment Variables
+#### 3. Configure Environment Variables
 
-Create a file named appsettings.json in the root directory and add the following structure:
+Create a file named appsettings.Development.json in the root directory and add the following structure:
 ```bash
 {
   "ModelName": "<your-model-name>",
@@ -63,11 +63,11 @@ Create a file named appsettings.json in the root directory and add the following
   }
 }
 ```
-### 4. Build the Application
+#### 4. Build the Application
 ```bash
 dotnet build
 ```
-### 5. Run the Application
+#### 5. Run the Application
 ```bash
 dotnet run
 ```
