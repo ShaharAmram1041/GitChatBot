@@ -15,6 +15,7 @@ public class GitChatBot
     private readonly CodeSearchPlugin _codebaseQnAService;
     private readonly string _githubUsername;
     private readonly string _githubToken;
+    private readonly AzureOpenAIPromptExecutionSettings _promptSettings;
 
     private string _currentRepoPath = string.Empty;
 
@@ -27,7 +28,8 @@ public class GitChatBot
          VectorStoreIngestor vectorStoreIngestor,
          CodeSearchPlugin codebaseQnAService,
          string githubUsername,
-         string githubToken)
+         string githubToken,
+         AzureOpenAIPromptExecutionSettings promptSettings)
     {
         _kernel = kernel;
         _chatService = chatService;
@@ -37,6 +39,7 @@ public class GitChatBot
         _codebaseQnAService = codebaseQnAService;
         _githubUsername = githubUsername;
         _githubToken = githubToken;
+        _promptSettings = promptSettings;
     }
 
     public async Task RunAsync()
@@ -222,25 +225,16 @@ public class GitChatBot
 
             // Fallback: General chat assistant
             history.AddUserMessage(userInput);
-            var chatResponse = _chatService.GetStreamingChatMessageContentsAsync(
-                history,
-                new AzureOpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() },
-                _kernel
-            );
+            
+            var response = await _chatService.GetChatMessageContentAsync(history, _promptSettings, _kernel);
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.Write("Agent -> ");
             Console.ResetColor();
 
-            string fullResponse = "";
-            await foreach (var chunk in chatResponse)
-            {
-                Console.Write(chunk.Content);
-                fullResponse += chunk.Content;
-            }
+            Console.WriteLine(response.Content);
+            history.AddAssistantMessage(response.Content!);
 
-            history.AddMessage(AuthorRole.Assistant, fullResponse);
-            Console.WriteLine();
         }
     }
 

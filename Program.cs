@@ -10,6 +10,7 @@ using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.Extensions.VectorData;
 using SemanticKernelPlayground.Infrastructure;
 using SemanticKernelPlayground.Plugins.Commits;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 
 // Configuration setup
 var configuration = new ConfigurationBuilder()
@@ -42,6 +43,11 @@ builder.Plugins.AddFromType<CodeSearchPlugin>();
 // Build the kernel
 var kernel = builder.Build();
 
+var promptSettings = new AzureOpenAIPromptExecutionSettings
+{
+    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+};
+
 // Resolve services from kernel DI
 var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 var vectorStore = kernel.GetRequiredService<IVectorStore>();
@@ -58,6 +64,8 @@ var generateReleaseNotes = releaseNotesPlugin["GenerateReleaseNotes"];
 // Retrieve kernel functions
 var getCommits = kernel.Plugins.GetFunction("CommitsPlugin", "GetCommits");
 
+
+
 // Run the Git chatbot
 var gitChatBot = new GitChatBot(
     kernel,
@@ -67,6 +75,7 @@ var gitChatBot = new GitChatBot(
     ingestor,
     codeQnAService,
     githubUsername,
-    githubToken);
+    githubToken,
+    promptSettings);
 
 await gitChatBot.RunAsync();
