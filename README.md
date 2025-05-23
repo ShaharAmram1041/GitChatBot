@@ -8,13 +8,13 @@ GitChatBot is a powerful and extensible **.NET 9 console application** that allo
 
 ## ✨ Features
 
-- 🔍 View recent Git commits and compare changes
-- 📝 Automatically generate professional release notes from commit history
-- 💬 Ask questions about the indexed codebase in natural language
-- 💡 Let the AI choose and invoke the correct tools automatically
-- 🔁 Perform common Git operations: `commit`, `push`, `pull`
-- 🧠 Embed and search code using vector memory (Semantic Search)
-- 🛠️ Plugin-based architecture with function auto-selection (via `FunctionChoiceBehavior.Auto()`)
+- View recent Git commits and compare changes
+- Automatically generate professional release notes from commit history
+- Ask questions about the indexed codebase in natural language
+- Let the AI choose and invoke the correct tools automatically
+- Perform common Git operations: `commit`, `push`, `pull`
+- Embed and search code using vector memory (Semantic Search)
+- Plugin-based architecture with function auto-selection (via `FunctionChoiceBehavior.Auto()`)
 <br/><br/>
 
 
@@ -27,8 +27,6 @@ GitChatBot is a powerful and extensible **.NET 9 console application** that allo
 - API keys/tokens:
   - Azure OpenAI API key and endpoint
   - GitHub token (for authenticated push/pull)
-
-
 <br/><br/>
 
 
